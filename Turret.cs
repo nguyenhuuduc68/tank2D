@@ -1,0 +1,73 @@
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.Events;
+[RequireComponent(typeof(ObjectPool))]
+public class Turret : MonoBehaviour
+{
+    public List<Transform> turretBarrels;
+    public TurretData turretData;
+
+    private bool canShoot = true;
+    private Collider2D[] tankColliders;
+    private float currentDelay = 0;
+
+    private ObjectPool bulletPool;
+    [SerializeField] private int bulletPoolCount = 10;
+
+    public UnityEvent OnShoot, OnCantShoot;
+    public UnityEvent<float> OnReloading;
+
+    private void Awake()
+    {
+        tankColliders = GetComponentsInParent<Collider2D>();
+        bulletPool = GetComponent<ObjectPool>();
+    }
+
+    private void Start()
+    {
+        bulletPool.Initialize(turretData.bulletPrefab, bulletPoolCount);// luu trữ số lượng đạn trong pool
+        OnReloading?.Invoke(currentDelay);
+    }
+
+    private void Update()
+    {
+        if (canShoot == false)
+        {
+            currentDelay -= Time.deltaTime;
+            OnReloading?.Invoke(currentDelay);
+            if (currentDelay <= 0)
+            {
+                canShoot = true;
+            }
+        }
+    }
+    public void Shoot()
+    {
+        if (canShoot)
+        {
+            canShoot = false;
+            currentDelay = turretData.reloadDelay;
+
+            foreach (var barrel in turretBarrels)
+            {
+                GameObject bullet = bulletPool.CreateOject();
+                bullet.transform.position = barrel.position;
+                bullet.transform.localRotation = barrel.rotation;
+                bullet.GetComponent<Bullet>().Initialized(turretData.bulletData);
+                Debug.Log("Bullet initialized from barrel: " + barrel.name);
+
+                foreach (var collider in tankColliders)
+                {
+                    Physics2D.IgnoreCollision(bullet.GetComponent<Collider2D>(), collider);
+                }
+            }
+
+            OnShoot?.Invoke();// Gọi sự kiện bắn
+            OnReloading?.Invoke(currentDelay);// Cập nhật thời gian nạp lại
+        }
+        else
+        {
+            OnCantShoot?.Invoke(); // Gọi sự kiện không thể bắn
+        }
+    }
+}
